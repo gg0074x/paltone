@@ -4,7 +4,7 @@ use image::{DynamicImage, EncodableLayout};
 
 use super::structs::Color;
 
-pub fn get_palette(image: DynamicImage) -> Vec<Color> {
+pub fn get_palette(image: DynamicImage, tolerance: f32) -> Vec<Color> {
     let mut colors: HashMap<Color, u32> = HashMap::new();
     let resized_img = image.resize(30, 30, image::imageops::FilterType::Nearest);
     let bytes = resized_img.into_rgb8();
@@ -12,7 +12,9 @@ pub fn get_palette(image: DynamicImage) -> Vec<Color> {
 
     bytes.chunks(3).for_each(|slice| {
         let color: Color = slice.into();
-        if !colors.contains_key(&color) && colors.iter().all(|(c, _)| !c.is_similar(color, 30.0)) {
+        if !colors.contains_key(&color)
+            && colors.iter().all(|(c, _)| !c.is_similar(color, tolerance))
+        {
             colors.insert(color, 1);
         } else if colors.contains_key(&color) {
             if let Some(count) = colors.get(&color) {
