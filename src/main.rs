@@ -68,7 +68,7 @@ fn extract<T: From<std::io::Error> + From<ImageError>>(
             Black
         };
         let text = foreground.on(RGB(color.0, color.1, color.2)).paint(format!(
-            "#{:#04X}{:#04X}{:#04X}\t{}, {}, {}",
+            "#{:02X}{:02X}{:02X}\t{}, {}, {}",
             color.0, color.1, color.2, color.0, color.1, color.2
         ));
         println!("{text}")

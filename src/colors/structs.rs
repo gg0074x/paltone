@@ -165,7 +165,7 @@ impl Serialize for Color {
         s.serialize_field("b", &self.2)?;
         s.serialize_field(
             "hex",
-            &format!("{:#04X}{:#04X}{:#04X}", &self.0, &self.1, &self.2),
+            &format!("{:02X}{:02X}{:02X}", &self.0, &self.1, &self.2),
         )?;
         s.end()
     }
