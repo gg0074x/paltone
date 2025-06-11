@@ -134,29 +134,17 @@ impl Color {
         let other_hue = other.get_hue();
         let other_lum = other.get_lum();
         let other_sat = other.get_sat();
-        let diff = if hue < other_hue {
-            hue - other_hue
-        } else {
-            other_hue - hue
-        };
 
-        let lum_diff = lum - other_lum;
+        let hue_diff = (hue - other_hue).abs();
+        let hue_diff = hue_diff.min(360.0 - hue_diff) / 180.0;
 
-        let sat_diff = sat - other_sat;
+        let lum_diff = (lum - other_lum).abs() / 50.0;
 
-        let diff = if diff < 0.0 {
-            diff + 360.0
-        } else if diff > 360.0 {
-            diff - 360.0
-        } else {
-            diff
-        };
+        let sat_diff = (sat - other_sat).abs() / 100.0;
 
-        if diff > tolerance || lum_diff.abs() > tolerance || sat_diff.abs() > tolerance {
-            false
-        } else {
-            true
-        }
+        let distance = hue_diff * 0.6 + lum_diff * 0.3 + sat_diff * 0.1;
+
+        (distance * 50.0) <= tolerance
     }
 }
 
@@ -175,7 +163,7 @@ impl Serialize for Color {
         s.serialize_field("r", &self.0)?;
         s.serialize_field("g", &self.1)?;
         s.serialize_field("b", &self.2)?;
-        s.serialize_field("hex", &format!("{:x}{:x}{:x}", &self.0, &self.1, &self.2))?;
+        s.serialize_field("hex", &format!("{:X}{:X}{:X}", &self.0, &self.1, &self.2))?;
         s.end()
     }
 }

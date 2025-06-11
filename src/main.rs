@@ -16,7 +16,7 @@ fn main() {
     let cli = Cli::parse();
 
     let quantity = cli.quantity.unwrap_or(5);
-    let tolerance = cli.tolerance.unwrap_or(40.0);
+    let tolerance = cli.tolerance.unwrap_or(8.0);
 
     let result = match &cli.command {
         Commands::Extract { path } => extract::<ImageError>(path, tolerance, quantity),
@@ -89,8 +89,21 @@ fn image<T: From<std::io::Error> + From<ImageError>>(
     let mut img = RgbImage::new(width, 32);
     let mut color_index: usize = 0;
 
+    let mut quantity = quantity as usize;
+
+    if palette.len() < quantity as usize {
+        println!(
+            "{}",
+            Red.paint(format!(
+                "Not enough colors could be extracted, capping to {}",
+                palette.len()
+            ))
+        );
+        quantity = palette.len()
+    }
+
     for x in 0..width {
-        if color_index == quantity as usize && x == width - 1 {
+        if color_index == quantity && x == width - 1 {
             color_index = 0;
         } else if x % 32 == 0 && x != 0 {
             color_index += 1;
