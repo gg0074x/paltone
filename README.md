@@ -3,6 +3,9 @@
 # 🎨 Paltone
 A CLI for extracting a color palette from an image
 
+## Website
+You can now test Paltone online [here](https://paltone.chiwabox.dev/)!
+
 ## 🖌️ Features
 - Extract colors from an image, listed by most used
 - Generation of images with the color palette
