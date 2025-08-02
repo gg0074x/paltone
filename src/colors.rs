@@ -1,43 +1,81 @@
+use std::collections::HashMap;
+
+use image::{DynamicImage, EncodableLayout};
+
+pub fn get_palette(image: &DynamicImage, tolerance: f32) -> Vec<Color> {
+    let mut colors: HashMap<Color, u32> = HashMap::new();
+    let resized_img = image.resize(30, 30, image::imageops::FilterType::Nearest);
+    let bytes = resized_img.into_rgb8();
+    let bytes = bytes.as_bytes();
+
+    bytes.chunks(3).for_each(|slice| {
+        let color: Color = slice.into();
+        if colors.contains_key(&color) {
+            if let Some(count) = colors.get(&color) {
+                colors.insert(color, count + 1);
+            }
+        } else {
+            colors.insert(color, 1);
+        }
+    });
+
+    let mut colors: Vec<(Color, u32)> = colors.into_iter().collect();
+    colors.sort_by(|(_, a), (_, b)| b.cmp(a));
+
+    let mut filtered = Vec::new();
+
+    for (color, count) in &colors {
+        if !filtered
+            .iter()
+            .any(|(c, _): &(Color, u32)| c.is_similar(*color, tolerance))
+        {
+            filtered.push((*color, *count));
+        }
+    }
+
+    colors = filtered;
+
+    colors.into_iter().map(|(c, _)| c).collect()
+}
+
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Color(pub u8, pub u8, pub u8);
 
 impl Color {
-    pub fn get_hue(&self) -> f32 {
+    pub fn hue(self) -> f32 {
         let (r, g, b) = (
-            self.0 as f32 / 255.0,
-            self.1 as f32 / 255.0,
-            self.2 as f32 / 255.0,
+            f32::from(self.0) / 255.0,
+            f32::from(self.1) / 255.0,
+            f32::from(self.2) / 255.0,
         );
 
-        let get_max = |color: (f32, f32, f32)| -> f32 {
+        let max = |color: (f32, f32, f32)| -> f32 {
             if color.0 >= color.1 && color.0 >= color.2 {
                 return color.0;
             } else if color.1 >= color.0 && color.1 >= color.2 {
                 return color.1;
-            } else {
-                return color.2;
             }
+            color.2
         };
 
-        let get_min = |color: (f32, f32, f32)| -> f32 {
+        let min = |color: (f32, f32, f32)| -> f32 {
             if color.0 <= color.1 && color.0 <= color.2 {
                 return color.0;
             } else if color.1 <= color.0 && color.1 <= color.2 {
                 return color.1;
-            } else {
-                return color.2;
             }
+            color.2
         };
 
-        let (max, min) = (get_max((r, g, b)), get_min((r, g, b)));
+        let (max, min) = (max((r, g, b)), min((r, g, b)));
 
-        let hue = if max == r {
+        let hue = if max.to_bits() == r.to_bits() {
             (g - b) / (max - min)
-        } else if max == g {
+        } else if max.to_bits() == g.to_bits() {
             2.0 + (b - r) / (max - min)
-        } else if max == b {
+        } else if max.to_bits() == b.to_bits() {
             4.0 + (r - g) / (max - min)
         } else {
             0.0
@@ -48,92 +86,87 @@ impl Color {
         if hue < 0.0 {
             hue += 360.0;
         }
-        return hue;
+        hue
     }
 
-    pub fn get_lum(&self) -> f32 {
+    pub fn luminance(self) -> f32 {
         let (r, g, b) = (
-            self.0 as f32 / 255.0,
-            self.1 as f32 / 255.0,
-            self.2 as f32 / 255.0,
+            f32::from(self.0) / 255.0,
+            f32::from(self.1) / 255.0,
+            f32::from(self.2) / 255.0,
         );
 
-        let get_max = |color: (f32, f32, f32)| -> f32 {
+        let max = |color: (f32, f32, f32)| -> f32 {
             if color.0 >= color.1 && color.0 >= color.2 {
                 return color.0;
             } else if color.1 >= color.0 && color.1 >= color.2 {
                 return color.1;
-            } else {
-                return color.2;
             }
+            color.2
         };
 
-        let get_min = |color: (f32, f32, f32)| -> f32 {
+        let min = |color: (f32, f32, f32)| -> f32 {
             if color.0 <= color.1 && color.0 <= color.2 {
                 return color.0;
             } else if color.1 <= color.0 && color.1 <= color.2 {
                 return color.1;
-            } else {
-                return color.2;
             }
+            color.2
         };
 
-        let (max, min) = (get_max((r, g, b)), get_min((r, g, b)));
+        let (max, min) = (max((r, g, b)), min((r, g, b)));
 
         ((max - min) / 2.0) * 100.0
     }
 
-    pub fn get_sat(&self) -> f32 {
+    pub fn saturation(self) -> f32 {
         let (r, g, b) = (
-            self.0 as f32 / 255.0,
-            self.1 as f32 / 255.0,
-            self.2 as f32 / 255.0,
+            f32::from(self.0) / 255.0,
+            f32::from(self.1) / 255.0,
+            f32::from(self.2) / 255.0,
         );
 
-        let get_max = |color: (f32, f32, f32)| -> f32 {
+        let max = |color: (f32, f32, f32)| -> f32 {
             if color.0 >= color.1 && color.0 >= color.2 {
                 return color.0;
             } else if color.1 >= color.0 && color.1 >= color.2 {
                 return color.1;
-            } else {
-                return color.2;
             }
+            color.2
         };
 
-        let get_min = |color: (f32, f32, f32)| -> f32 {
+        let min = |color: (f32, f32, f32)| -> f32 {
             if color.0 <= color.1 && color.0 <= color.2 {
                 return color.0;
             } else if color.1 <= color.0 && color.1 <= color.2 {
                 return color.1;
-            } else {
-                return color.2;
             }
+            color.2
         };
 
-        let delta = get_max((r, g, b)) - get_min((r, g, b));
+        let delta = max((r, g, b)) - min((r, g, b));
         if delta == 0.0 {
             return 0.0;
-        } else {
-            return (delta / (1.0 - (2.0 * (self.get_lum() / 100.0) - 1.0).abs())) * 100.0;
         }
+        (delta / (1.0 - (2.0 * (self.luminance() / 100.0) - 1.0).abs())) * 100.0
     }
 
-    pub fn get_rel_lum(&self) -> f32 {
+    pub fn relative_luminance(self) -> f32 {
         let (r, g, b) = (
-            self.0 as f32 / 255.0,
-            self.1 as f32 / 255.0,
-            self.2 as f32 / 255.0,
+            f32::from(self.0) / 255.0,
+            f32::from(self.1) / 255.0,
+            f32::from(self.2) / 255.0,
         );
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        0.2126 * r + 0.7152 * g + 0.0722 * b
     }
 
-    pub fn is_similar(&self, other: Color, tolerance: f32) -> bool {
-        let hue = self.get_hue();
-        let lum = self.get_lum();
-        let sat = self.get_sat();
-        let other_hue = other.get_hue();
-        let other_lum = other.get_lum();
-        let other_sat = other.get_sat();
+    pub fn is_similar(self, other: Color, tolerance: f32) -> bool {
+        let hue = self.hue();
+        let lum = self.luminance();
+        let sat = self.saturation();
+        let other_hue = other.hue();
+        let other_lum = other.luminance();
+        let other_sat = other.saturation();
 
         let hue_diff = (hue - other_hue).abs();
         let hue_diff = hue_diff.min(360.0 - hue_diff) / 180.0;

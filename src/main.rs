@@ -1,5 +1,5 @@
 use std::{
-    io::ErrorKind,
+    io::Error,
     path::{self, PathBuf},
 };
 
@@ -9,7 +9,7 @@ mod clap;
 mod colors;
 use ansi_term::Colour::{Black, Cyan, Green, RGB, Red, White};
 use clap::{Cli, Commands};
-use colors::colors::get_palette;
+use colors::get_palette;
 use image::{ImageError, ImageReader, Rgb, RgbImage};
 
 fn main() {
@@ -20,49 +20,46 @@ fn main() {
 
     let result = match &cli.command {
         Commands::Extract { path } => extract::<ImageError>(path, tolerance, quantity),
-        Commands::Image { input, output } => image(input, output, tolerance, quantity),
+        Commands::Image { input, output } => image(input, output.as_ref(), tolerance, quantity),
         Commands::Json { path } => json(path, tolerance, quantity),
     };
 
     if let Err(error) = result {
-        println!(
-            "{}",
-            Red.paint(format!("An error has ocurred! {}", error.to_string()))
-        );
+        eprintln!("{}", Red.paint(format!("An error has ocurred! {error}")));
     }
 }
 
-fn extract<T: From<std::io::Error> + From<ImageError>>(
+fn extract<T: From<Error> + From<ImageError>>(
     path: &PathBuf,
     tolerance: f32,
     quantity: u16,
 ) -> Result<(), T> {
     let image = ImageReader::open(path)?.decode()?;
-    let palette = get_palette(image, tolerance);
+    let palette = get_palette(&image, tolerance);
 
     println!(
         "{} different colors have been extracted!\nShowing the {} most prevalent:\n",
         Cyan.underline().paint(format!("{}", palette.len())),
-        Green.underline().paint(format!("{}", quantity)),
+        Green.underline().paint(format!("{quantity}")),
     );
 
     let mut quantity = quantity as usize;
 
-    if palette.len() < quantity as usize {
-        println!(
+    if palette.len() < quantity {
+        eprintln!(
             "{}",
             Red.paint(format!(
                 "Not enough colors could be extracted, capping to {}",
                 palette.len()
             ))
         );
-        quantity = palette.len()
+        quantity = palette.len();
     }
 
-    for color in 0..quantity {
+    (0..quantity).for_each(|color| {
         let color = palette[color];
 
-        let foreground = if color.get_rel_lum() < 0.5 {
+        let foreground = if color.relative_luminance() < 0.5 {
             White
         } else {
             Black
@@ -71,35 +68,38 @@ fn extract<T: From<std::io::Error> + From<ImageError>>(
             "#{:02X}{:02X}{:02X}\t{}, {}, {}",
             color.0, color.1, color.2, color.0, color.1, color.2
         ));
-        println!("{text}")
-    }
+        println!("{text}");
+    });
     Ok(())
 }
 
-fn image<T: From<std::io::Error> + From<ImageError>>(
+fn image<T>(
     input: &PathBuf,
-    output: &Option<PathBuf>,
+    output: Option<&PathBuf>,
     tolerance: f32,
     quantity: u16,
-) -> Result<(), T> {
+) -> Result<(), T>
+where
+    T: From<Error> + From<ImageError>,
+{
     let image = ImageReader::open(input)?.decode()?;
-    let palette = get_palette(image, tolerance);
+    let palette = get_palette(&image, tolerance);
 
-    let width = 32 * quantity as u32;
+    let width = 32 * u32::from(quantity);
     let mut img = RgbImage::new(width, 32);
     let mut color_index: usize = 0;
 
     let mut quantity = quantity as usize;
 
-    if palette.len() < quantity as usize {
-        println!(
+    if palette.len() < quantity {
+        eprintln!(
             "{}",
             Red.paint(format!(
                 "Not enough colors could be extracted, capping to {}",
                 palette.len()
             ))
         );
-        quantity = palette.len()
+        quantity = palette.len();
     }
 
     for x in 0..width {
@@ -116,7 +116,7 @@ fn image<T: From<std::io::Error> + From<ImageError>>(
     }
 
     let path: PathBuf = [r"./", "new_palette.png"].iter().collect();
-    let output = output.clone().unwrap_or(path);
+    let output = output.unwrap_or(&path);
 
     img.save(&output)?;
 
@@ -124,24 +124,27 @@ fn image<T: From<std::io::Error> + From<ImageError>>(
         "{}",
         Green.paint(format!(
             "Image was saved to {}",
-            path::absolute(&output).unwrap_or(output).to_str().unwrap()
+            path::absolute(output)
+                .unwrap_or(output.clone())
+                .to_str()
+                .unwrap()
         ))
     );
     Ok(())
 }
 
-fn json<T: From<std::io::Error> + From<ImageError>>(
+fn json<T: From<Error> + From<ImageError>>(
     path: &PathBuf,
     tolerance: f32,
     quantity: u16,
 ) -> Result<(), T> {
     let image = ImageReader::open(path)?.decode()?;
-    let mut palette = get_palette(image, tolerance);
+    let mut palette = get_palette(&image, tolerance);
     palette.truncate(quantity as usize);
 
     let Ok(json) = serde_json::to_string(&palette) else {
-        return Err(std::io::Error::new(ErrorKind::Other, "Json could'nt be created").into());
+        return Err(Error::other("Json couldn't be created").into());
     };
-    println!("{}", json);
+    println!("{json}");
     Ok(())
 }
